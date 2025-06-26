@@ -53,23 +53,24 @@ The repository is structured to highlight the core Sentinel AMM strategy. The or
 
 /
 ├── contracts/
-│ ├── SentinelAMM.sol # The upgraded Predictive Manager, hardened by Chainlink
-│ ├── AutomationCompatible.sol # The contract that Chainlink Automation interacts with
-│ └── BaselineMinimal.sol # (For reference) The original spot-price strategy
+│   ├── SentinelAMM.sol              # The upgraded Predictive Manager, hardened by Chainlink.
+│   ├── AutomationCompatible.sol     # The contract that Chainlink Automation interacts with.
+│   └── BaselineMinimal.sol          # (For reference) The original spot-price strategy.
 │
 ├── scripts/
-│ ├── deploySentinel.js # Deploys SentinelAMM and the Automation contract
-│ └── deployMinimal.js # (For reference)
+│   ├── deploySentinel.js            # Deploys SentinelAMM and the Automation contract.
+│   └── deployMinimal.js             # (For reference)
 │
 ├── test/
-│ └── sentinel/
-│ └── sentinel_test.py # Primary test script for Sentinel AMM strategy
+│   └── sentinel/
+│       └── sentinel_test.py         # The primary test script for the Sentinel AMM strategy.
 │
-├── run_sentinel_test.sh # Master script to run full test pipeline
-├── .env # Environment variables
-├── hardhat.config.js # Hardhat config for Mainnet forking
-├── requirements.txt # Python dependencies
-└── package.json # Node.js dependencies
+├── run_sentinel_test.sh             # Master script to run the full test pipeline for Sentinel AMM.
+├── .env                             # Environment variables (including Chainlink Price Feed address).
+├── hardhat.config.js                # Hardhat config for Mainnet forking.
+├── requirements.txt                 # Python dependencies.
+└── package.json                     # Node.js dependencies.
+
 
 
 
