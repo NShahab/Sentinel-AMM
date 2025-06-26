@@ -1,0 +1,4 @@
+my_tensorflow_env/
+node_modules/
+.env
+hardhat.config
