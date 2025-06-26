@@ -49,6 +49,8 @@ We solved these core challenges by integrating two of Chainlink's cornerstone se
 ## 🗂️ Project Structure
 
 The repository is structured to highlight the core Sentinel AMM strategy. The original Baseline contract remains for historical context but is not the focus of this hackathon submission.
+
+
 /
 ├── contracts/
 │ ├── SentinelAMM.sol # The upgraded Predictive Manager, hardened by Chainlink.
@@ -68,6 +70,7 @@ The repository is structured to highlight the core Sentinel AMM strategy. The or
 ├── hardhat.config.js # Hardhat config for Mainnet forking.
 ├── requirements.txt # Python dependencies.
 └── package.json # Node.js dependencies.
+
 
 
 ## ✅ How to Run
