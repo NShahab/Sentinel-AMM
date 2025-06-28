@@ -12,15 +12,24 @@ module.exports = {
     solidity: {
         compilers: [
             {
-                version: "0.7.6",
+                version: "0.8.20", // for SentinelAMM و AutomationTrigger
                 settings: {
                     optimizer: {
                         enabled: true,
-                        runs: 200
-                    }
-                }
-            }
-        ]
+                        runs: 200,
+                    },
+                },
+            },
+            {
+                version: "0.7.6", //for  Uniswap V3
+                settings: {
+                    optimizer: {
+                        enabled: true,
+                        runs: 200,
+                    },
+                },
+            },
+        ],
     },
     defaultNetwork: "hardhat",
     networks: {
