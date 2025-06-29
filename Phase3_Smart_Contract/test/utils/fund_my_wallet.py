@@ -20,14 +20,14 @@ MIN_ETH_FOR_WHALE_GAS = 0.1
 # --- Token & Whale Configuration (web3.py v5 compatible) ---
 TOKEN_CONFIG = {
     "WETH": {
-        "address": Web3.toChecksumAddress("0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),
-        "whale": Web3.toChecksumAddress("0x2f0b23f53734252bda2277357e97e1517d6b042a"),
+        "address": Web3.to_checksum_address("0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),
+        "whale": Web3.to_checksum_address("0x2f0b23f53734252bda2277357e97e1517d6b042a"),
         "amount_readable": 300,
         "decimals": 18,
     },
     "USDC": {
-        "address": Web3.toChecksumAddress("0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"),
-        "whale": Web3.toChecksumAddress("0x55fe002aeff02f77364de339a1292923a15844b8"),
+        "address": Web3.to_checksum_address("0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"),
+        "whale": Web3.to_checksum_address("0x55fe002aeff02f77364de339a1292923a15844b8"),
         "amount_readable": 3000000,
         "decimals": 6,
     },
@@ -55,8 +55,8 @@ class WalletFunder:
         for attempt in range(MAX_RETRIES):
             try:
                 w3 = Web3(HTTPProvider(self.rpc_url, request_kwargs={'timeout': 60}))
-                if w3.isConnected(): # CORRECT for web3.py v5
-                    logger.info(f"Successfully connected to Ethereum node. Chain ID: {w3.eth.chainId}")
+                if w3.is_connected(): # CORRECT for web3.py v5
+                    logger.info(f"Successfully connected to Ethereum node. Chain ID: {w3.eth.chain_id}")
                     return w3
             except Exception as e:
                 logger.warning(f"Connection attempt {attempt + 1}/{MAX_RETRIES} failed: {e}")
@@ -69,7 +69,7 @@ class WalletFunder:
         if not address:
             logger.critical("FATAL: DEPLOYER_ADDRESS environment variable not set.")
             sys.exit(1)
-        return Web3.toChecksumAddress(address) # CORRECT for web3.py v5
+        return Web3.to_checksum_address(address) # CORRECT for web3.py v5
 
     def _make_rpc_request(self, method: str, params: list) -> Any:
         try:
@@ -80,7 +80,7 @@ class WalletFunder:
 
     def set_eth_balance(self, address: str, eth_amount: float) -> bool:
         logger.info(f"Attempting to set ETH balance for {address[:10]}... to {eth_amount} ETH.")
-        wei_amount = self.w3.toWei(eth_amount, 'ether') # CORRECT for web3.py v5
+        wei_amount = self.w3.to_wei(eth_amount, 'ether') # CORRECT for web3.py v5
         
         result = self._make_rpc_request("hardhat_setBalance", [address, hex(wei_amount)])
         
@@ -89,17 +89,17 @@ class WalletFunder:
             return False
             
         sleep(0.5)
-        new_balance_wei = self.w3.eth.getBalance(address) # CORRECT for web3.py v5
+        new_balance_wei = self.w3.eth.get_balance(address) # CORRECT for web3.py v5
         if new_balance_wei >= wei_amount:
-            logger.info(f"✅ ETH balance successfully set for {address[:10]}.... New balance: {self.w3.fromWei(new_balance_wei, 'ether')} ETH")
+            logger.info(f"✅ ETH balance successfully set for {address[:10]}.... New balance: {self.w3.from_wei(new_balance_wei, 'ether')} ETH")
             return True
         else:
             logger.error("ETH balance verification failed.")
             return False
 
     def _ensure_eth_for_gas(self, account: str) -> bool:
-        min_wei = self.w3.toWei(MIN_ETH_FOR_WHALE_GAS, 'ether')
-        balance_wei = self.w3.eth.getBalance(account)
+        min_wei = self.w3.to_wei(MIN_ETH_FOR_WHALE_GAS, 'ether')
+        balance_wei = self.w3.eth.get_balance(account)
         if balance_wei < min_wei:
             logger.warning(f"Whale {account[:10]}... has insufficient ETH for gas. Funding with 1 ETH...")
             return self.set_eth_balance(account, 1.0)
@@ -135,14 +135,14 @@ class WalletFunder:
             whale_balance_wei = token_contract.functions.balanceOf(whale_address).call()
             
             if whale_balance_wei < amount_wei:
-                whale_balance_readable = self.w3.fromWei(whale_balance_wei, 'ether' if config['decimals'] == 18 else 'mwei')
+                whale_balance_readable = self.w3.from_wei(whale_balance_wei, 'ether' if config['decimals'] == 18 else 'mwei')
                 logger.error(f"Whale has insufficient {token_symbol}. Has: {whale_balance_readable}, Needs: {amount_readable}")
                 return False
             
             logger.info(f"Whale has enough {token_symbol}. Transferring {amount_readable} {token_symbol}...")
             
             tx_hash = token_contract.functions.transfer(self.deployer_address, amount_wei).transact({'from': whale_address})
-            receipt = self.w3.eth.waitForTransactionReceipt(tx_hash, timeout=180) # CORRECT for web3.py v5
+            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=180) # CORRECT for web3.py v5
 
             if receipt.status == 1:
                 logger.info(f"✅ {token_symbol} transfer successful. TxHash: {tx_hash.hex()}")

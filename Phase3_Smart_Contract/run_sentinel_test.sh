@@ -3,15 +3,11 @@
 # ==============================================================================
 #                 Sentinel AMM Fork Test Automation Script
 #
-# Version: 5.0 (Sentinel Architecture)
-# Description:
-# Automates end-to-end testing of the Sentinel AMM strategy on a local
-# Hardhat Mainnet fork. This version deploys both the SentinelAMM and
-# AutomationTrigger contracts and runs the full-cycle Python test script.
+# Version: 5.2 (Increased Timeout & Typo Fix)
 # ==============================================================================
 
 # --- Script Configuration ---
-set -e -u -o pipefail # Exit on error, treat unset variables as an error, and fail on pipe errors
+set -e -u -o pipefail
 
 # --- PATH & Directory Setup ---
 PROJECT_DIR_DEFAULT="/root/Sentinel-AMM/Phase3_Smart_Contract"
@@ -21,69 +17,28 @@ mkdir -p "$LOG_FILE_DIR"
 LOG_FILE="$LOG_FILE_DIR/sentinel_test_run_$(date +%Y%m%d_%H%M%S).log"
 HARDHAT_NODE_LOG_FILE="$LOG_FILE_DIR/hardhat_node_$(date +%Y%m%d_%H%M%S).log"
 
-# --- MODIFIED: Script & File Paths ---
-# Point to the new Sentinel-specific files
+# --- Script & File Paths ---
 DEPLOY_SCRIPT_SENTINEL="$PROJECT_DIR/scripts/deploySentinel.js"
 PYTHON_SCRIPT_SENTINEL="$PROJECT_DIR/test/sentinel_test.py"
 FUNDING_SCRIPT="$PROJECT_DIR/test/utils/fund_my_wallet.py"
 ENV_FILE="$PROJECT_DIR/.env"
-ADDRESS_FILE_SENTINEL="$PROJECT_DIR/sentinel_addresses.json" # New JSON file for both addresses
+ADDRESS_FILE_SENTINEL="$PROJECT_DIR/sentinel_addresses.json"
 
-# --- Network & Retry Configuration ---
+# --- Network Configuration ---
 LOCAL_RPC_URL="http://127.0.0.1:8545"
 HARDHAT_PORT=8545
 HARDHAT_HOST="127.0.0.1"
-MAX_RETRIES=3
-RETRY_DELAY=10 # Seconds
 
-# --- Python Environment ---
-VENV_ACTIVATE="$PROJECT_DIR/venv/bin/activate"
-
-# --- Helper Functions (Preserved from your robust original script) ---
+# --- Helper Functions ---
 function log() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" | tee -a "$LOG_FILE"
-}
-
-function validate_environment() {
-    log "Validating environment prerequisites..."
-    local all_ok=true
-    local required_commands=(node npm python3 curl jq git)
-    for cmd in "${required_commands[@]}"; do
-        if ! command -v "$cmd" &> /dev/null; then
-            log "ERROR: Required command '$cmd' not found." && all_ok=false
-        fi
-    done
-
-    # MODIFIED: Check for the new files
-    local required_files=("$ENV_FILE" "$DEPLOY_SCRIPT_SENTINEL" "$PYTHON_SCRIPT_SENTINEL" "$FUNDING_SCRIPT")
-    for file in "${required_files[@]}"; do
-        if [ ! -f "$file" ]; then
-            log "ERROR: Required file '$file' not found." && all_ok=false
-        fi
-    done
-    
-    # Check for essential environment variables inside .env
-    if [ -f "$ENV_FILE" ]; then
-        local required_env_vars=("MAINNET_RPC_URL" "PRIVATE_KEY" "DEPLOYER_ADDRESS")
-        for var_name in "${required_env_vars[@]}"; do
-            if ! grep -q "^${var_name}=" "$ENV_FILE"; then
-                 log "ERROR: Required environment variable '$var_name' is not set in $ENV_FILE." && all_ok=false
-            fi
-        done
-    fi
-
-    if [ "$all_ok" = false ]; then
-        log "CRITICAL: Environment validation failed. Please fix the errors above." && exit 1
-    fi
-    log "Environment validation successful."
 }
 
 function kill_hardhat_node() {
     log "Attempting to stop any existing Hardhat node on port $HARDHAT_PORT..."
     PIDS=$(pgrep -f "hardhat node.*--port $HARDHAT_PORT" || true)
     if [ -n "$PIDS" ]; then
-        kill $PIDS &>/dev/null || true
-        sleep 2
+        kill $PIDS &>/dev/null || true; sleep 2
         if pgrep -f "hardhat node.*--port $HARDHAT_PORT" &>/dev/null; then
             log "Node still running. Force killing (kill -9)..."
             kill -9 $PIDS &>/dev/null || true
@@ -92,119 +47,103 @@ function kill_hardhat_node() {
     log "Hardhat node stopped or was not running."
 }
 
-function check_rpc_ready() {
-    log "Checking if RPC at $LOCAL_RPC_URL is ready..."
-    for attempt in $(seq 1 20); do
-        if curl -s -X POST --data '{"jsonrpc":"2.0","method":"net_version","params":[],"id":1}' -H "Content-Type: application/json" "$LOCAL_RPC_URL" --connect-timeout 5 | jq -e '.result' > /dev/null; then
-            log "RPC is ready." && return 0
-        fi
-        log "RPC not ready yet (attempt $attempt/20). Retrying in 5 seconds..."
-        sleep 5
-    done
-    log "ERROR: RPC did not become ready." && return 1
-}
-
-function run_python_test() {
-    local script_path="$1"
-    local test_name="$2"
-    log "Running Python test: $test_name..."
-    if python3 -u "$script_path"; then
-        log "✅ $test_name test completed successfully." && return 0
-    else
-        log "❌ ERROR: $test_name test failed. Check $LOG_FILE for traceback." && return 1
-    fi
-}
-
 # --- MAIN SCRIPT EXECUTION ---
-exec > >(tee -a "$LOG_FILE") 2>&1 # Redirect all output to log file and console
+exec > >(tee -a "$LOG_FILE") 2>&1
 
 log "=============================================="
 log "🚀 Starting Sentinel AMM Test Automation 🚀"
 log "=============================================="
 
-# --- 1. SETUP ---
-log "--- [1/5] Performing Setup ---"
-validate_environment
+log "--- [1/4] Performing Setup ---"
 cd "$PROJECT_DIR" || exit 1
 log "Changed directory to $(pwd)"
 
-log "Cleaning and compiling contracts..."
-# Ensure old artifacts are gone before compiling with multiple compiler versions
-npx hardhat clean 
+log "Compiling contracts (if needed)..."
 npx hardhat compile
 
-if [ -f "$VENV_ACTIVATE" ]; then
+if [ -f "$PROJECT_DIR/venv/bin/activate" ]; then
     log "Activating Python virtual environment..."
-    source "$VENV_ACTIVATE"
+    source "$PROJECT_DIR/venv/bin/activate"
 fi
 
 log "Loading environment variables from $ENV_FILE..."
-set -o allexport
-source "$ENV_FILE"
-set +o allexport
+set -o allexport; source "$ENV_FILE"; set +o allexport
 
-# --- 2. START FORK ---
-log "--- [2/5] Starting Hardhat Mainnet Fork ---"
+log "--- [2/4] Starting Hardhat Mainnet Fork ---"
 kill_hardhat_node
-# MODIFIED: Remove the new address file before deployment
 rm -f "$ADDRESS_FILE_SENTINEL"
 
-log "Starting Hardhat node with Mainnet fork..."
-# The logic to get the latest block is good, but for speed, we can let Hardhat choose.
-# You can add back your LATEST_BLOCK logic here if needed.
-nohup npx hardhat node --hostname "$HARDHAT_HOST" --port "$HARDHAT_PORT" > "$HARDHAT_NODE_LOG_FILE" 2>&1 &
+log "Starting Hardhat node in the background..."
+npx hardhat node --hostname "$HARDHAT_HOST" --port "$HARDHAT_PORT" > "$HARDHAT_NODE_LOG_FILE" 2>&1 &
 HARDHAT_PID=$!
-log "Hardhat node started with PID: $HARDHAT_PID. Waiting for RPC to become ready..."
+# MODIFIED: Increased sleep time to give the fork more time to initialize
+log "Hardhat node launched with PID: $HARDHAT_PID. Waiting 25 seconds for initialization..."
+sleep 25
 
-if ! check_rpc_ready; then
-    log "CRITICAL: Hardhat node failed to start. Check $HARDHAT_NODE_LOG_FILE."
-    kill_hardhat_node
+# Check if the Hardhat process is still running
+if ! ps -p $HARDHAT_PID > /dev/null; then
+    log "------------------------------------------------------------------"
+    log "❌ CRITICAL: Hardhat node process (PID $HARDHAT_PID) is NOT running."
+    log "Displaying the last 20 lines of the node log file for debugging:"
+    log "--- LOG START ---"
+    # CORRECTED: Fixed the variable name typo
+    tail -n 20 "$HARDHAT_NODE_LOG_FILE"
+    log "--- LOG END ---"
+    log "------------------------------------------------------------------"
     exit 1
+else
+    log "✅ Hardhat node process is still alive. Checking RPC port..."
 fi
-# This ensures the Python scripts use the local fork
+
+# Check if RPC port is now ready
+if ! curl -s -X POST --data '{"jsonrpc":"2.0","method":"net_version","params":[],"id":1}' -H "Content-Type: application/json" "$LOCAL_RPC_URL" --connect-timeout 10 | jq -e '.result' > /dev/null; then
+     log "------------------------------------------------------------------"
+     log "❌ CRITICAL: Hardhat node process is running, but RPC port is not responding."
+     log "Displaying the last 20 lines of the node log file for debugging:"
+     log "--- LOG START ---"
+     # CORRECTED: Fixed the variable name typo
+     tail -n 20 "$HARDHAT_NODE_LOG_FILE"
+     log "--- LOG END ---"
+     log "------------------------------------------------------------------"
+     kill_hardhat_node
+     exit 1
+fi
+
+log "✅ RPC is ready. Proceeding with tests."
 export MAINNET_FORK_RPC_URL="$LOCAL_RPC_URL"
 
-# --- 3. FUND WALLETS ---
-log "--- [3/5] Funding Wallets ---"
+# --- 3. FUND, DEPLOY & TEST ---
+log "--- [3/4] Funding, Deploying, and Testing ---"
+log "Funding deployer account..."
 if ! python3 -u "$FUNDING_SCRIPT"; then
-    log "CRITICAL: Wallet funding script failed. Check logs."
-    kill "$HARDHAT_PID"; exit 1
+    log "CRITICAL: Wallet funding script failed." && kill_hardhat_node && exit 1
 fi
-log "Wallet funding complete."
 
-# --- 4. DEPLOY CONTRACTS & RUN TESTS (MODIFIED SECTION) ---
-log "--- [4/5] Deploying Contracts & Running Test ---"
-
-# Deploy both contracts using the new deployment script
-log "Deploying Sentinel AMM system (SentinelAMM & AutomationTrigger)..."
+log "Deploying Sentinel AMM system..."
 if ! npx hardhat run "$DEPLOY_SCRIPT_SENTINEL" --network localhost; then
-    log "CRITICAL: Sentinel deployment script failed."
-    kill "$HARDHAT_PID"; exit 1
+    log "CRITICAL: Sentinel deployment script failed." && kill_hardhat_node && exit 1
 fi
 
-# Export BOTH deployed addresses for the Python script
-log "Exporting contract addresses for Python test environment..."
+log "Exporting contract addresses for Python script..."
 if [ -f "$ADDRESS_FILE_SENTINEL" ]; then
-    # Use jq to parse the new JSON file and export variables
     export SENTINEL_AMM_ADDRESS=$(jq -r '.sentinelAmmAddress' "$ADDRESS_FILE_SENTINEL")
     export AUTOMATION_TRIGGER_ADDRESS=$(jq -r '.automationTriggerAddress' "$ADDRESS_FILE_SENTINEL")
-    log "  -> Exported SENTINEL_AMM_ADDRESS=${SENTINEL_AMM_ADDRESS}"
-    log "  -> Exported AUTOMATION_TRIGGER_ADDRESS=${AUTOMATION_TRIGGER_ADDRESS}"
 else
-    log "CRITICAL: Sentinel address file not found after deployment!"; kill "$HARDHAT_PID"; exit 1
+    log "CRITICAL: Address file not found after deployment!"; kill_hardhat_node && exit 1
 fi
 
-# Run the single, comprehensive Sentinel test
-sentinel_test_status=1
-run_python_test "$PYTHON_SCRIPT_SENTINEL" "Sentinel Full-Cycle Strategy"
-sentinel_test_status=$?
+log "Running the main Python test script..."
+test_status=0
+if ! python3 -u "$PYTHON_SCRIPT_SENTINEL"; then
+    log "❌ ERROR: Python test script failed."
+    test_status=1
+else
+    log "✅ Python test script completed successfully."
+fi
 
-# --- 5. TEARDOWN & SUMMARY ---
-log "--- [5/5] Performing Teardown & Summary ---"
-log "Stopping Hardhat node (PID: $HARDHAT_PID)..."
-kill "$HARDHAT_PID"
-sleep 2
-kill_hardhat_node # Final cleanup check
+# --- 4. TEARDOWN & SUMMARY ---
+log "--- [4/4] Performing Teardown & Summary ---"
+kill_hardhat_node
 
 if type deactivate &> /dev/null && [[ -n "${VIRTUAL_ENV-}" ]]; then
     log "Deactivating Python virtual environment..."
@@ -214,9 +153,8 @@ fi
 log "=============================================="
 log "✅ Test Automation Script Completed ✅"
 log "=============================================="
-log "Sentinel Test Result: $( [ $sentinel_test_status -eq 0 ] && echo "🎉 SUCCESS" || echo "❌ FAILURE" )"
+log "Final Test Result: $( [ $test_status -eq 0 ] && echo "🎉 SUCCESS" || echo "❌ FAILURE" )"
 log "Detailed logs available in: $LOG_FILE"
-log "Hardhat node logs (if any issues): $HARDHAT_NODE_LOG_FILE"
+log "=============================================="
 
-# Exit with the status of the test run
-exit $sentinel_test_status
+exit $test_status

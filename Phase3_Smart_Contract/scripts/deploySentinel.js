@@ -1,4 +1,4 @@
-// scripts/deploySentinel.js
+// scripts/deploySentinel.js - FINAL AND ROBUST VERSION
 const hre = require("hardhat");
 const fs = require('fs');
 const path = require('path');
@@ -6,16 +6,16 @@ const path = require('path');
 async function main() {
     console.log("🚀 Starting deployment of Sentinel AMM system...");
 
-    // --- Mainnet Addresses ---
-    const UNISWAP_V3_FACTORY_MAINNET = "0x1F98431c8aD98523631AE4a59f267346ea31F984";
-    const POSITION_MANAGER_MAINNET = "0xC36442b4a4522E871399CD717aBDD847Ab11FE88";
-    const WETH_MAINNET = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
-    const USDC_MAINNET = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
+    // --- Mainnet Addresses (Ensuring Valid Checksums using getAddress) ---
+    const getAddress = hre.ethers.utils.getAddress;
 
-    // NEW: Chainlink ETH/USD Price Feed on Mainnet
-    const CHAINLINK_ETH_USD_FEED = "0x5f4eC3Df9cbd43714FE274045F36413C88f58e50";
+    const UNISWAP_V3_FACTORY_MAINNET = getAddress("0x1f98431c8ad98523631ae4a59f267346ea31f984");
+    const POSITION_MANAGER_MAINNET = getAddress("0xc36442b4a4522e871399cd717abdd847ab11fe88");
+    const WETH_MAINNET = getAddress("0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2");
+    const USDC_MAINNET = getAddress("0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48");
+    const CHAINLINK_ETH_USD_FEED = getAddress("0x5f4ec3df9cbd43714fe274045f36413c88f58e50");
 
-    const POOL_FEE = 500; // 0.05%
+    const POOL_FEE = 500;
     const INITIAL_RANGE_WIDTH_MULTIPLIER = 100;
 
     const [deployer] = await hre.ethers.getSigners();
@@ -25,18 +25,20 @@ async function main() {
     // --- 1. Deploy SentinelAMM Contract ---
     console.log("\n1. Deploying SentinelAMM...");
     const SentinelAMM = await hre.ethers.getContractFactory("SentinelAMM");
-    const constructorToken0 = WETH_MAINNET < USDC_MAINNET ? WETH_MAINNET : USDC_MAINNET;
-    const constructorToken1 = WETH_MAINNET < USDC_MAINNET ? USDC_MAINNET : WETH_MAINNET;
+
+    // Ensure correct token order for the pool
+    const token0 = WETH_MAINNET.toLowerCase() < USDC_MAINNET.toLowerCase() ? WETH_MAINNET : USDC_MAINNET;
+    const token1 = WETH_MAINNET.toLowerCase() < USDC_MAINNET.toLowerCase() ? USDC_MAINNET : WETH_MAINNET;
 
     const sentinelAmm = await SentinelAMM.deploy(
         UNISWAP_V3_FACTORY_MAINNET,
         POSITION_MANAGER_MAINNET,
-        constructorToken0,
-        constructorToken1,
+        token0,
+        token1,
         POOL_FEE,
         deployer.address,
         INITIAL_RANGE_WIDTH_MULTIPLIER,
-        CHAINLINK_ETH_USD_FEED // Pass the new oracle address
+        CHAINLINK_ETH_USD_FEED
     );
     await sentinelAmm.deployed();
     console.log(`✅ SentinelAMM deployed to: ${sentinelAmm.address}`);
@@ -44,11 +46,15 @@ async function main() {
     // --- 2. Deploy AutomationTrigger Contract ---
     console.log("\n2. Deploying AutomationTrigger...");
     const AutomationTrigger = await hre.ethers.getContractFactory("AutomationTrigger");
-    const automationTrigger = await AutomationTrigger.deploy(
-        sentinelAmm.address // Pass the deployed SentinelAMM address to the trigger
-    );
+    const automationTrigger = await AutomationTrigger.deploy(sentinelAmm.address);
     await automationTrigger.deployed();
     console.log(`✅ AutomationTrigger deployed to: ${automationTrigger.address}`);
+
+    // NEW: Set the AutomationTrigger as an authorized caller on the SentinelAMM contract
+    console.log("\n3. Authorizing trigger contract...");
+    const tx = await sentinelAmm.setAuthorizedCaller(automationTrigger.address);
+    await tx.wait(1);
+    console.log("✅ Authorization successful.");
 
     // --- 3. Save Deployed Addresses ---
     const addresses = {

@@ -14,7 +14,7 @@ import "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 import "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
 
 // NEW: Add the Chainlink AggregatorV3Interface
-import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
+import "./interfaces/AggregatorV3Interface.sol";
 
 interface IERC20Decimals {
     function decimals() external view returns (uint8);
@@ -25,7 +25,7 @@ contract SentinelAMM is Ownable, ReentrancyGuard, IUniswapV3MintCallback {
     using SafeERC20 for IERC20;
 
     // NEW: Add a state variable for the Chainlink Price Feed oracle.
-    AggregatorV3Interface internal immutable priceFeed;
+    AggregatorV3Interface public immutable priceFeed;
     IUniswapV3Factory public immutable factory;
     INonfungiblePositionManager public immutable positionManager; // Made immutable as it's set in constructor
     address public immutable token0;
@@ -34,6 +34,7 @@ contract SentinelAMM is Ownable, ReentrancyGuard, IUniswapV3MintCallback {
     uint8 public immutable token1Decimals;
     uint24 public immutable fee;
     int24 public immutable tickSpacing;
+    address public authorizedCaller;
 
     struct Position {
         uint256 tokenId;
@@ -73,6 +74,19 @@ contract SentinelAMM is Ownable, ReentrancyGuard, IUniswapV3MintCallback {
         uint256 amount1Fees,
         bool success
     );
+    // NEW: Add a modifier to check for owner OR authorized caller
+    modifier onlyAuth() {
+        require(
+            msg.sender == owner() || msg.sender == authorizedCaller,
+            "Sentinel: Not authorized"
+        );
+        _;
+    }
+
+    // NEW: Add a function to set the authorized caller
+    function setAuthorizedCaller(address _caller) external onlyOwner {
+        authorizedCaller = _caller;
+    }
 
     constructor(
         address _factory,
@@ -98,16 +112,9 @@ contract SentinelAMM is Ownable, ReentrancyGuard, IUniswapV3MintCallback {
         require(_initialRangeWidthMultiplier > 0, "Initial RWM must be > 0");
         rangeWidthMultiplier = _initialRangeWidthMultiplier;
 
-        try IERC20Decimals(_token0).decimals() returns (uint8 _decimals) {
-            token0Decimals = _decimals;
-        } catch {
-            revert("Token0 does not support decimals()");
-        }
-        try IERC20Decimals(_token1).decimals() returns (uint8 _decimals) {
-            token1Decimals = _decimals;
-        } catch {
-            revert("Token1 does not support decimals()");
-        }
+        // CORRECTED: Use the IERC20Decimals interface to call the decimals function
+        token0Decimals = IERC20Decimals(_token0).decimals();
+        token1Decimals = IERC20Decimals(_token1).decimals();
 
         address poolAddress = IUniswapV3Factory(_factory).getPool(
             _token0,
@@ -138,7 +145,7 @@ contract SentinelAMM is Ownable, ReentrancyGuard, IUniswapV3MintCallback {
     function updatePredictionAndAdjust(
         int24 predictedTick,
         uint256 predictedPrice_8_decimals // NEW PARAMETER
-    ) external nonReentrant onlyOwner {
+    ) external nonReentrant onlyAuth {
         // --- 1. NEW: Sentinel Safety Guardrail ---
         (, int256 currentChainlinkPrice_8_decimals, , , ) = priceFeed
             .latestRoundData();

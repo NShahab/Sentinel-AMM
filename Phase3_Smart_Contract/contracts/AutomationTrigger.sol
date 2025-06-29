@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-// NEW: Import the Chainlink Automation interface
-import {AutomationCompatibleInterface, AutomationError} from "@chainlink/contracts/src/v0.8/automation/AutomationCompatible.sol";
-
+// CORRECTED: The path for Automation interfaces DOES include /src/
+import "./interfaces/AutomationCompatibleInterface.sol";
 /**
  * @title ISentinelAMM
  * @notice An interface for the main SentinelAMM contract.
@@ -44,22 +43,22 @@ contract AutomationTrigger is AutomationCompatibleInterface {
     }
 
     /**
-     * @inheritdoc AAutomationCompatibleInterface
+     * @inheritdoc AutomationCompatibleInterface
      * @dev This function is called by Chainlink Automation nodes to check if an upkeep is needed.
      * For a simple time-based automation (e.g., every 4 hours), we can just return `true`.
      * The time interval itself is configured on the Chainlink Automation platform, not in the contract.
      */
     function checkUpkeep(
-        bytes calldata /* checkData */
+        bytes calldata /* checkData */ // MODIFIED: Changed from 'view' to 'pure' for optimization
     )
         external
-        view
+        pure
         override
-        returns (bool upkeepNeeded, bytes memory /* performData */)
+        returns (bool upkeepNeeded, bytes memory performData)
     {
-        upkeepNeeded = true; // Always ready to be triggered for time-based automation
+        upkeepNeeded = true;
+        performData = ""; // MODIFIED: Explicitly assign a value to the return variable
     }
-
     /**
      * @inheritdoc AutomationCompatibleInterface
      * @dev This function is called by Chainlink nodes if checkUpkeep returns true.

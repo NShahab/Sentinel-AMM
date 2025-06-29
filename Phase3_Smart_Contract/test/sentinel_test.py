@@ -1,6 +1,17 @@
+# -*- coding: utf-8 -*-
 # test/sentinel_test.py (Full version, preserving original logic)
-import os
 import sys
+from pathlib import Path
+
+# This block ensures Python can find the 'test.utils' module
+# by adding the project's root directory to the system path.
+# Path of the current file -> .../test/sentinel_test.py
+current_file_path = Path(__file__).resolve()
+# Go up two levels to get the project root -> .../Phase3_Smart_Contract/
+project_root = current_file_path.parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+import os
 import json
 import time
 import logging
@@ -8,18 +19,12 @@ import requests
 import math
 import csv
 from datetime import datetime
-from pathlib import Path
 from web3 import Web3
 from web3.exceptions import ContractLogicError
 from eth_account import Account
 from decimal import Decimal, getcontext
 
 # --- Setup Paths and Logging (preserved from your original script) ---
-current_file_path = Path(__file__).resolve()
-project_root = current_file_path.parent.parent.parent
-if str(project_root) not in sys.path:
-    sys.path.insert(0, str(project_root))
-
 import test.utils.web3_utils as web3_utils
 import test.utils.contract_funder as contract_funder
 from test.utils.test_base import LiquidityTestBase
@@ -40,19 +45,20 @@ logger = logging.getLogger('sentinel_test')
 
 
 class SentinelTest(LiquidityTestBase):
-    """A full-featured test for the Sentinel AMM system, based on the original predictive_test.py logic."""
-
     def __init__(self, sentinel_address: str, trigger_address: str):
+        # MODIFIED: Define ACTION_STATES *before* calling the parent constructor
+        self.ACTION_STATES = json.loads('{"INIT": "init", "SETUP_FAILED": "setup_failed", "POOL_READ_FAILED": "pool_read_failed", "API_FAILED": "api_failed", "CALCULATION_FAILED": "calculation_failed", "FUNDING_FAILED": "funding_failed", "TX_SENT": "tx_sent", "TX_SUCCESS_ADJUSTED": "tx_success_adjusted", "TX_REVERTED": "tx_reverted", "TX_WAIT_FAILED": "tx_wait_failed", "METRICS_UPDATE_FAILED": "metrics_update_failed", "UNEXPECTED_ERROR": "unexpected_error", "SWAP_FOR_FEES_FAILED": "swap_for_fees_failed"}')
+
+        # Now call the parent constructor, which needs ACTION_STATES
         super().__init__(sentinel_address, "SentinelAMM")
-        # NEW: Storing the trigger contract
+        
+        # The rest of the constructor remains the same
         self.trigger_address = Web3.to_checksum_address(trigger_address)
         self.trigger_contract = web3_utils.get_contract(self.trigger_address, "AutomationTrigger")
         
-        # Your original states and metrics structure
-        self.ACTION_STATES = json.loads('{"INIT": "init", "SETUP_FAILED": "setup_failed", "POOL_READ_FAILED": "pool_read_failed", "API_FAILED": "api_failed", "CALCULATION_FAILED": "calculation_failed", "FUNDING_FAILED": "funding_failed", "TX_SENT": "tx_sent", "TX_SUCCESS_ADJUSTED": "tx_success_adjusted", "TX_REVERTED": "tx_reverted", "TX_WAIT_FAILED": "tx_wait_failed", "METRICS_UPDATE_FAILED": "metrics_update_failed", "UNEXPECTED_ERROR": "unexpected_error", "SWAP_FOR_FEES_FAILED": "swap_for_fees_failed"}')
         self.metrics = self._reset_metrics()
-        logger.info(f"Sentinel system test initialized. Main Contract: {self.contract_address}, Trigger: {self.trigger_address}")
-
+        self.pool_contract = None
+        logger.info(f"Trigger contract initialized for testing at: {self.trigger_address}")
     def _reset_metrics(self):
         # Your original metrics structure
         return {
@@ -69,7 +75,7 @@ class SentinelTest(LiquidityTestBase):
         private_key = os.getenv('PRIVATE_KEY')
         tx_account = Account.from_key(private_key)
         tx_set_rwm = self.contract.functions.setRangeWidthMultiplier(desired_range_width_multiplier)
-        tx_params = {'from': tx_account.address, 'nonce': self.w3.eth.get_transaction_count(tx_account.address)}
+        tx_params = {'from': tx_account.address, 'nonce': web3_utils.w3.eth.get_transaction_count(tx_account.address)}
         try:
             tx_params['gas'] = int(tx_set_rwm.estimate_gas({'from': tx_account.address}) * 1.2)
         except: tx_params['gas'] = 200000
@@ -122,7 +128,7 @@ class SentinelTest(LiquidityTestBase):
         total_amount_wei = single_swap_amount_wei * num_swaps
         pool_fee_for_swap = self.contract.functions.fee().call()
         approve_tx = token_in_contract.functions.approve(UNISWAP_V3_ROUTER_ADDRESS, total_amount_wei)
-        nonce = self.w3.eth.get_transaction_count(funding_account.address)
+        nonce = web3_utils.w3.eth.get_transaction_count(funding_account.address)
         receipt_approve = web3_utils.send_transaction(approve_tx.build_transaction({'from': funding_account.address, 'gas': 100000, 'nonce': nonce}), private_key_env)
         if not receipt_approve or receipt_approve.status == 0: logger.error("Router approval failed."); return False
         
@@ -131,7 +137,7 @@ class SentinelTest(LiquidityTestBase):
             try:
                 swap_params = {'tokenIn': Web3.to_checksum_address(swap_token_in_addr), 'tokenOut': Web3.to_checksum_address(swap_token_out_addr),'fee': pool_fee_for_swap,'recipient': funding_account.address,'deadline': int(time.time()) + 600,'amountIn': single_swap_amount_wei,'amountOutMinimum': 0,'sqrtPriceLimitX96': 0}
                 swap_tx = router_contract.functions.exactInputSingle(swap_params)
-                nonce = self.w3.eth.get_transaction_count(funding_account.address)
+                nonce = web3_utils.w3.eth.get_transaction_count(funding_account.address)
                 receipt_swap = web3_utils.send_transaction(swap_tx.build_transaction({'from': funding_account.address, 'gas': 300000, 'nonce': nonce}), private_key_env)
                 if receipt_swap and receipt_swap.status == 1: successful_swaps += 1
                 else: logger.warning(f"Swap {i+1} failed.")
@@ -141,7 +147,7 @@ class SentinelTest(LiquidityTestBase):
         return successful_swaps > 0
 
 
-    def adjust_position_full_cycle(self, target_weth_balance: float, target_usdc_balance: float):
+    def adjust_position(self, target_weth_balance: float, target_usdc_balance: float):
         """This is the full test cycle, adapted for the new architecture."""
         logger.info("\n" + "="*20 + " BEGINNING FULL TEST CYCLE " + "="*20)
         self.metrics = self._reset_metrics()
@@ -163,7 +169,7 @@ class SentinelTest(LiquidityTestBase):
             # Instead of calling self.contract, we call self.trigger_contract
             logger.info(f"Triggering Initial Adjustment: Tick={predicted_tick}, Price={price_for_contract}")
             tx_call = self.trigger_contract.functions.manualTrigger(predicted_tick, price_for_contract)
-            nonce = self.w3.eth.get_transaction_count(funding_account.address)
+            nonce = web3_utils.w3.eth.get_transaction_count(funding_account.address)
             tx_params = {'from': funding_account.address, 'nonce': nonce}
             try: tx_params['gas'] = int(tx_call.estimate_gas(tx_params) * 1.3)
             except Exception as e: logger.warning(f"Gas estimation failed: {e}"); tx_params['gas'] = 1_500_000
@@ -191,7 +197,7 @@ class SentinelTest(LiquidityTestBase):
             # --- CRITICAL CHANGE 2 ---
             logger.info(f"Triggering Final Adjustment: Tick={predicted_tick}, Price={price_for_contract}")
             tx_call = self.trigger_contract.functions.manualTrigger(predicted_tick, price_for_contract)
-            nonce = self.w3.eth.get_transaction_count(funding_account.address)
+            nonce = web3_utils.w3.eth.get_transaction_count(funding_account.address)
             tx_params = {'from': funding_account.address, 'nonce': nonce}
             try: tx_params['gas'] = int(tx_call.estimate_gas(tx_params) * 1.3)
             except Exception as e: logger.warning(f"Gas estimation failed: {e}"); tx_params['gas'] = 1_500_000
@@ -252,9 +258,9 @@ def main():
     try:
         test_instance = SentinelTest(sentinel_address, trigger_address)
         if test_instance.setup(desired_range_width_multiplier=rwm):
-            test_instance.adjust_position_full_cycle(
-                target_weth_balance=target_usdc, # Corrected: passed usdc as weth
-                target_usdc_balance=target_weth  # Corrected: passed weth as usdc
+            test_instance.adjust_position(
+                target_weth_balance=target_weth,
+                target_usdc_balance=target_usdc
             )
         else:
             logger.error("Setup failed. Aborting test.")
