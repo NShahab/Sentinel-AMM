@@ -1,65 +1,106 @@
-// scripts/deploySentinel.js - FINAL AND ROBUST VERSION
+// scripts/deploySentinel.js - FINAL ALL-IN-ONE VERSION
 const hre = require("hardhat");
 const fs = require('fs');
 const path = require('path');
+require('dotenv').config();
 
 async function main() {
     console.log("🚀 Starting deployment of Sentinel AMM system...");
 
-    // --- Mainnet Addresses (Ensuring Valid Checksums using getAddress) ---
-    const getAddress = hre.ethers.utils.getAddress;
+    // --- 1. All Configuration Inside This Script ---
+    const networkConfig = {
+        // Config for Hardhat local network (chainId 31337)
+        31337: {
+            name: 'localhost',
+            uniswapFactory: "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+            positionManager: "0xC36442b4a4522E871399CD717aBDD847Ab11FE88",
+            weth: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+            usdc: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+            feeTier: 3000,
+            rangeWidthMultiplier: 100,
+        },
+        // Config for Ethereum Mainnet (chainId 1)
+        1: {
+            name: 'mainnet',
+            priceFeed: "0x5F4ec3DF9CbD43714Fe274045F36413C88f58E50",
+            // You can add other mainnet addresses here if needed
+            uniswapFactory: "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+            positionManager: "0xC36442b4a4522E871399CD717aBDD847Ab11FE88",
+            weth: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+            usdc: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+            feeTier: 3000,
+            rangeWidthMultiplier: 100,
+        }
+    };
 
-    const UNISWAP_V3_FACTORY_MAINNET = getAddress("0x1f98431c8ad98523631ae4a59f267346ea31f984");
-    const POSITION_MANAGER_MAINNET = getAddress("0xc36442b4a4522e871399cd717abdd847ab11fe88");
-    const WETH_MAINNET = getAddress("0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2");
-    const USDC_MAINNET = getAddress("0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48");
-    const CHAINLINK_ETH_USD_FEED = getAddress("0x5f4ec3df9cbd43714fe274045f36413c88f58e50");
+    // --- 2. Setup Environment ---
+    const chainId = hre.network.config.chainId;
+    const isTestEnvironment = chainId === 31337;
+    const config = networkConfig[chainId];
 
-    const POOL_FEE = 500;
-    const INITIAL_RANGE_WIDTH_MULTIPLIER = 100;
+    if (!config) {
+        throw new Error(`No network configuration found for chainId: ${chainId}. Please add it to the networkConfig object.`);
+    }
 
-    const [deployer] = await hre.ethers.getSigners();
+    if (!process.env.PRIVATE_KEY) {
+        throw new Error("PRIVATE_KEY is not set in your .env file!");
+    }
+    const deployer = new hre.ethers.Wallet(process.env.PRIVATE_KEY, hre.ethers.provider);
+
+    console.log(`🌍 Deploying on network: ${config.name} (ChainId: ${chainId})`);
     console.log("Deploying contracts with the account:", deployer.address);
     console.log("Account balance:", (await deployer.getBalance()).toString());
 
-    // --- 1. Deploy SentinelAMM Contract ---
+    let priceFeedAddress;
+
+    // --- 3. Conditionally Deploy Mock or Use Real Address ---
+    if (isTestEnvironment) {
+        console.log("\n🧪 Test environment detected. Deploying MockAggregatorV3...");
+        const MockAggregatorV3 = await hre.ethers.getContractFactory("MockAggregatorV3", deployer); // Connect factory to deployer
+        const mockAggregator = await MockAggregatorV3.deploy();
+        await mockAggregator.deployed();
+        priceFeedAddress = mockAggregator.address;
+        console.log(`✅ MockAggregatorV3 deployed to: ${priceFeedAddress}`);
+    } else {
+        console.log("\n🌐 Live or testnet environment detected. Using real Chainlink address.");
+        priceFeedAddress = config.priceFeed;
+        console.log(`✅ Using real Price Feed at: ${priceFeedAddress}`);
+    }
+
+    // --- 4. Deploy SentinelAMM Contract ---
     console.log("\n1. Deploying SentinelAMM...");
-    const SentinelAMM = await hre.ethers.getContractFactory("SentinelAMM");
-
-    // Ensure correct token order for the pool
-    const token0 = WETH_MAINNET.toLowerCase() < USDC_MAINNET.toLowerCase() ? WETH_MAINNET : USDC_MAINNET;
-    const token1 = WETH_MAINNET.toLowerCase() < USDC_MAINNET.toLowerCase() ? USDC_MAINNET : WETH_MAINNET;
-
+    const SentinelAMM = await hre.ethers.getContractFactory("SentinelAMM", deployer); // Connect factory to deployer
     const sentinelAmm = await SentinelAMM.deploy(
-        UNISWAP_V3_FACTORY_MAINNET,
-        POSITION_MANAGER_MAINNET,
-        token0,
-        token1,
-        POOL_FEE,
-        deployer.address,
-        INITIAL_RANGE_WIDTH_MULTIPLIER,
-        CHAINLINK_ETH_USD_FEED
+        config.uniswapFactory,
+        config.positionManager,
+        config.usdc,
+        config.weth,
+        config.feeTier,
+        deployer.address, // Set deployer as owner
+        config.rangeWidthMultiplier,
+        priceFeedAddress
     );
     await sentinelAmm.deployed();
     console.log(`✅ SentinelAMM deployed to: ${sentinelAmm.address}`);
 
-    // --- 2. Deploy AutomationTrigger Contract ---
+    // --- 5. Deploy AutomationTrigger Contract ---
     console.log("\n2. Deploying AutomationTrigger...");
-    const AutomationTrigger = await hre.ethers.getContractFactory("AutomationTrigger");
+    const AutomationTrigger = await hre.ethers.getContractFactory("AutomationTrigger", deployer); // Connect factory to deployer
     const automationTrigger = await AutomationTrigger.deploy(sentinelAmm.address);
     await automationTrigger.deployed();
     console.log(`✅ AutomationTrigger deployed to: ${automationTrigger.address}`);
 
-    // NEW: Set the AutomationTrigger as an authorized caller on the SentinelAMM contract
+    // --- 6. Authorize the Trigger ---
     console.log("\n3. Authorizing trigger contract...");
     const tx = await sentinelAmm.setAuthorizedCaller(automationTrigger.address);
     await tx.wait(1);
     console.log("✅ Authorization successful.");
 
-    // --- 3. Save Deployed Addresses ---
+    // --- 7. Save Deployed Addresses ---
     const addresses = {
         sentinelAmmAddress: sentinelAmm.address,
-        automationTriggerAddress: automationTrigger.address
+        automationTriggerAddress: automationTrigger.address,
+        priceFeedInUse: priceFeedAddress
     };
     const outputPath = path.join(__dirname, '..', 'sentinel_addresses.json');
     fs.writeFileSync(outputPath, JSON.stringify(addresses, null, 2));

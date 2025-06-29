@@ -1,11 +1,11 @@
-// hardhat.config.js - FINAL AND CORRECTED VERSION
+// hardhat.config.js - FINAL, CORRECTED FORKING-ENABLED VERSION
 require("@nomicfoundation/hardhat-toolbox");
 require("hardhat-deploy");
 require("dotenv").config();
 
-const MAINNET_RPC_URL = process.env.MAINNET_RPC_URL || "https://rpc.ankr.com/eth"; // Fallback RPC added
-const PRIVATE_KEY = process.env.PRIVATE_KEY || "0xkey"; // Default dummy key
-const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY || "YourEtherscanApiKey"; // Default dummy key
+const MAINNET_RPC_URL = process.env.MAINNET_RPC_URL || "";
+const PRIVATE_KEY = process.env.PRIVATE_KEY || "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
+const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY || "YourEtherscanApiKey";
 
 module.exports = {
     solidity: {
@@ -21,19 +21,16 @@ module.exports = {
     networks: {
         hardhat: {
             chainId: 31337,
+            // Forking IS ENABLED. This is necessary for Uniswap V3 contracts to exist.
             forking: {
                 url: MAINNET_RPC_URL,
-                // By OMITTING 'blockNumber', Hardhat will ALWAYS fork from the LATEST block.
-                // This is the correct configuration to solve your Chainlink data issue.
+                // By not specifying a 'blockNumber', it will use the latest block.
+                // This requires a high-quality RPC URL from Alchemy or Infura.
             },
-            // The accounts part from your config was not standard. 
-            // Hardhat provides 20 test accounts with 10000 ETH by default.
-            // No need to configure it unless you need a specific private key.
         },
         localhost: {
             url: "http://127.0.0.1:8545",
             chainId: 31337,
-            timeout: 120000
         }
     },
     etherscan: {
@@ -51,9 +48,9 @@ module.exports = {
         tests: "./test",
         cache: "./cache",
         artifacts: "./artifacts",
-        deployments: "./deployments"
+        deployments: "deployments"
     },
     mocha: {
-        timeout: 200000, // Increased timeout for long-running fork tests
+        timeout: 300000, // Increased timeout for forking
     },
 };
