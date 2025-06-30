@@ -1,86 +1,229 @@
-﻿# Sentinel AMM: AI-Predictive Liquidity Automated & Secured by Chainlink
+﻿Sentinel AMM: AI-Predictive Liquidity Automated & Secured by Chainlink
+An intelligent, automated liquidity management strategy for Uniswap V3 that leverages AI for price prediction, Chainlink Automation for decentralized execution, and Chainlink Price Feeds for on-chain security.
 
-A predictive Automated Market Maker (AMM) strategy for Uniswap V3, secured by Chainlink Data Feeds and decentralized by Chainlink Automation.
+Submitted to the Chainlink Chronos Hackathon 2025
 
-**Submitted to the Chainlink Chromion Hackathon 2025**
+The Story: From a Predictive Model to a Fortified Protocol
+Our journey began with a sophisticated research project. We developed a powerful system featuring an LSTM AI model to proactively forecast market prices and a smart contract (PredictiveLiquidityManager) that adjusted Uniswap V3 liquidity based on these AI predictions.
 
-## The Story: From a Predictive Model to a Fortified Protocol
+While innovative, this initial architecture had two critical vulnerabilities:
 
-Our journey began with a sophisticated research project aimed at revolutionizing AMM liquidity management. We developed a powerful system featuring:
+A Centralized Point of Failure: The entire system relied on a centralized server to trigger adjustments. If our server went down, the strategy would halt.
 
-- **Phase 1 (Data Collection):** A robust pipeline to gather historical market data.
-- **Phase 2 (AI Prediction):** A trained LSTM model to proactively forecast market prices.
-- **Phase 3 (Initial Implementation):** A smart contract, `PredictiveLiquidityManager`, that adjusted Uniswap V3 liquidity based on these AI predictions.
+A Blind Trust Security Risk: The smart contract blindly trusted the price from our off-chain API. A faulty prediction could lead to catastrophic losses.
 
-While innovative, our initial architecture had two critical vulnerabilities inherent in many DeFi projects:
+For this hackathon, we transformed this prototype into a production-ready, secure, and resilient protocol: Sentinel AMM.
 
-1. **A Centralized Point of Failure:** The entire system relied on a centralized, off-chain script to trigger strategy adjustments. If our server went down, the strategy would halt.
-2. **A Blind Trust Security Risk:** The smart contract blindly trusted the price predictions from our off-chain API. A faulty prediction, whether from a model bug or a malicious attack, could lead to catastrophic losses by placing liquidity in a disastrous range.
+We solved these core challenges by deeply integrating two of Chainlink's cornerstone services:
 
-For the Chainlink Chromion Hackathon, we transformed this academic prototype into a production-ready, secure, and resilient protocol: **Sentinel AMM**.
+🛡️ Chainlink Price Feeds as a "Safety Guardrail": Our smart contract no longer blindly trusts the AI. It first fetches the highly reliable, decentralized market price from Chainlink Price Feeds. If the AI's prediction deviates too far from this on-chain source of truth, the transaction is safely reverted.
 
-We solved these core challenges by integrating two of Chainlink's cornerstone services:
+⚙️ Chainlink Automation as a "Decentralized Executor": We replaced our fragile, centralized script with Chainlink's battle-tested automation network. This ensures our strategy is executed reliably and consistently, completely removing our server as a single point of failure.
 
-- 🛡️ **Chainlink Data Feeds as a "Safety Guardrail":** Our smart contract no longer blindly trusts the AI's prediction. It first fetches the highly reliable, decentralized, and tamper-proof market price from Chainlink Data Feeds. If the AI's prediction deviates too far from this on-chain source of truth, the transaction is safely reverted, preventing flawed strategy execution.
-- ⚙️ **Chainlink Automation as a "Decentralized Executor":** We replaced our fragile, centralized script with Chainlink's battle-tested, decentralized automation network. This ensures our strategy is executed reliably and consistently based on our predefined schedule (e.g., every 4 hours), completely removing our server as a single point of failure.
+Sentinel AMM is the evolution: an intelligent strategy guarded by uncompromisable on-chain truth and driven by unstoppable on-chain automation.
 
-**Sentinel AMM is the evolution:** an intelligent strategy guarded by uncompromisable on-chain truth and driven by unstoppable on-chain automation.
+🏛️ System Architecture
+Our system seamlessly integrates an off-chain AI brain with an on-chain DeFi muscle, bridged and secured by the Chainlink network.
 
-## Core Architecture & Features
++--------------------------+         +--------------------------+         +---------------------------+
+|     OFF-CHAIN (Brain)    |         |    CHAINLINK (Bridge)    |         |      ON-CHAIN (Muscle)    |
++--------------------------+         +--------------------------+         +---------------------------+
+|                          |         |                          |         |                           |
+|  [AI Price Model (LSTM)] | --► API | [Chainlink Automation]   | --► Call| [AutomationTrigger.sol]   |
+|                          |         | (Time-based Trigger)     |         |                           |
+|                          |         |                          |         |             |             |
+|                          |         |                          |         |             ▼             |
+|                          |         |                          |         |    [SentinelAMM.sol]      |
+|                          |         |                          |         |      (The Vault)          |
+|                          |         | [Chainlink Price Feed]   | --► Read|             |             |
+|                          |         | (For On-Chain Security)  |         |             |             |
+|                          |         |                          |         |             ▼             |
+|                          |         |                          |         |      [Uniswap V3 Pool]    |
+|                          |         |                          |         |                           |
++--------------------------+         +--------------------------+         +---------------------------+
+🛠️ Technology Stack
+Smart Contracts: Solidity, Hardhat, OpenZeppelin
 
-*(Note: Include a new diagram here that adds Chainlink Automation and Data Feeds to your previous flowchart.)*
+Decentralized Services: 🔗 Chainlink Automation, 🔗 Chainlink Price Feeds
 
-1. **Decentralized Trigger (Chainlink Automation):**
-   - A time-based Upkeep is registered with the Chainlink Automation network.
-   - The network reliably calls our smart contract at a predefined interval (e.g., every 4 hours), ensuring consistent strategy execution without any centralized servers.
+DeFi Protocol: 🦄 Uniswap V3
 
-2. **AI Price Prediction (Off-Chain Brain):**
-   - Our LSTM model, hosted on an external server, continues to serve as the "brain" of the operation, providing forward-looking market analysis.
+Off-Chain & Testing: 🐍 Python, web3.py, PyTorch, hardhat-deploy, ethers.js
 
-3. **On-Chain Validation (Chainlink Data Feeds):**
-   - The Sentinel AMM contract receives the prediction from the AI.
-   - It immediately calls a Chainlink Data Feed (e.g., ETH/USD) to get the current, trusted market price.
-   - It validates that the prediction is within a safe threshold (e.g., +/- 10%) of the real market price. If not, the operation is securely halted.
+Infrastructure: Node.js, Infura/Alchemy (for forking)
 
-4. **Automated Liquidity Management (On-Chain Action):**
-   - If the prediction is validated, the contract calculates the optimal new liquidity range based on the AI's price target.
-   - It then atomically removes the old liquidity position and mints a new one in the new range on Uniswap V3.
+🔬 Technical Deep Dive & Code Highlights
+1. The Safety Guardrail (Chainlink Price Feed)
+To prevent bad predictions from causing losses, SentinelAMM.sol validates every AI prediction against the on-chain truth from a Chainlink Price Feed before adjusting the position.
 
-## 🗂️ Project Structure
+Code Snippet (SentinelAMM.sol):
 
-The repository is structured to highlight the core Sentinel AMM strategy. The original Baseline contract remains for historical context but is not the focus of this hackathon submission.
+Solidity
 
+function updatePredictionAndAdjust(
+    int24 predictedTick,
+    uint256 predictedPrice_8_decimals
+) external nonReentrant onlyAuth {
+    // --- 1. Sentinel Safety Guardrail ---
+    (, int256 currentChainlinkPrice_8_decimals, , , ) = priceFeed.latestRoundData();
+    require(
+        currentChainlinkPrice_8_decimals > 0,
+        "Sentinel: Invalid Chainlink price"
+    );
 
+    // Calculate deviation between AI prediction and Chainlink price
+    uint256 difference = _getDifference(uint256(currentChainlinkPrice_8_decimals), predictedPrice_8_decimals);
+    uint256 tenPercentOfCurrent = uint256(currentChainlinkPrice_8_decimals) / 10;
+
+    // Revert if deviation is more than 10%
+    require(
+        difference <= tenPercentOfCurrent,
+        "Sentinel: Prediction deviates too much!"
+    );
+
+    // --- 2. Core Logic ---
+    // ... proceed with liquidity adjustment ...
+}
+2. The Decentralized Executor (Chainlink Automation)
+Our AutomationTrigger.sol contract is a lightweight, secure entry point for the Chainlink Automation network. It implements the AutomationCompatibleInterface standard.
+
+Code Snippet (AutomationTrigger.sol):
+
+Solidity
+
+import "./interfaces/AutomationCompatibleInterface.sol";
+
+contract AutomationTrigger is AutomationCompatibleInterface {
+    ISentinelAMM public immutable sentinel;
+    address public immutable owner;
+
+    constructor(address _sentinelAddress) {
+        sentinel = ISentinelAMM(_sentinelAddress);
+        owner = msg.sender;
+    }
+    
+    function checkUpkeep(...) external view override returns (bool upkeepNeeded, bytes memory performData) {
+        upkeepNeeded = true; // For a time-based upkeep, always ready
+        performData = "";
+    }
+
+    function performUpkeep(bytes calldata performData) external override {
+        // In a production system, this is where Chainlink Functions would
+        // be called to fetch the AI prediction before triggering the Sentinel.
+        // For the demo, we use manualTrigger to simulate this data flow.
+    }
+
+    // Demo function to simulate data input from AI -> Chainlink Functions
+    function manualTrigger(int24 predictedTick, uint256 predictedPrice_8_decimals) external {
+        require(msg.sender == owner, "Only owner can trigger manually");
+        sentinel.updatePredictionAndAdjust(predictedTick, predictedPrice_8_decimals);
+    }
+}
+🗂️ Project Structure
 /
 ├── contracts/
-│   ├── SentinelAMM.sol              # The upgraded Predictive Manager, hardened by Chainlink.
-│   ├── AutomationCompatible.sol     # The contract that Chainlink Automation interacts with.
-│   └── BaselineMinimal.sol          # (For reference) The original spot-price strategy.
+│   ├── SentinelAMM.sol               # The main vault, hardened by Chainlink.
+│   ├── AutomationTrigger.sol         # The contract for Chainlink Automation.
+│   └── mocks/
+│       └── MockAggregatorV3.sol      # Mock Price Feed for reliable testing.
+│
+├── deploy/
+│   └── 01-deploy-sentinel.js         # Smart deployment script for all contracts.
 │
 ├── scripts/
-│   ├── deploySentinel.js            # Deploys SentinelAMM and the Automation contract.
-│   └── deployMinimal.js             # (For reference)
+│   └── deploySentinel.js             # (Reference) An alternative ethers.js deploy script.
 │
 ├── test/
-│   └── sentinel/
-│       └── sentinel_test.py         # The primary test script for the Sentinel AMM strategy.
+│   ├── utils/                        # Python testing utilities.
+│   └── sentinel_test.py              # The primary end-to-end test script.
 │
-├── run_sentinel_test.sh             # Master script to run the full test pipeline for Sentinel AMM.
-├── .env                             # Environment variables (including Chainlink Price Feed address).
-├── hardhat.config.js                # Hardhat config for Mainnet forking.
-├── requirements.txt                 # Python dependencies.
-└── package.json                     # Node.js dependencies.
+├── .env.example                      # Example environment variables.
+├── hardhat.config.js                 # Hardhat config with Mainnet forking.
+├── helper-hardhat-config.js          # Stores network-specific addresses.
+├── requirements.txt                  # Python dependencies.
+└── run_sentinel_test.sh              # Master script to run the full test pipeline.
+🚀 Getting Started: How to Run the Test Pipeline
+Follow these steps to run the complete end-to-end test simulation.
 
+1. Prerequisites
+Node.js (v18 or later)
 
+Python (v3.10 or later)
 
+venv for Python virtual environments
 
-## ✅ How to Run
+2. Installation & Setup
+1. Clone the repository:
 
-1. **Configure .env:** Set `MAINNET_RPC_URL`, `PRIVATE_KEY`, etc.
-2. **Install Dependencies:** Run `npm install` and `pip install -r requirements.txt`.
-3. **Execute the Test Pipeline:**
-   ```bash
-   chmod +x run_sentinel_test.sh
-   ./run_sentinel_test.sh
+Bash
 
-This will start a Hardhat fork, deploy the contracts, and run the Python test script to simulate the Sentinel AMM strategy, validating its logic against Chainlink Data Feeds in a forked environment.
+git clone [Your-Repo-URL]
+cd [Your-Repo-Folder]
+2. Install Node.js dependencies:
+
+Bash
+
+npm install
+3. Set up Python virtual environment and install dependencies:
+
+Bash
+
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+4. Configure your Environment Variables:
+Create a .env file in the project root by copying the example file.
+
+Bash
+
+cp .env.example .env
+Now, open the .env file and add your own keys:
+
+Code snippet
+
+# Get a free URL from a provider like Alchemy or Infura
+MAINNET_RPC_URL="https://eth-mainnet.g.alchemy.com/v2/YOUR_API_KEY"
+
+# Your Ethereum account private key (from MetaMask, etc.)
+# IMPORTANT: This account will be used to deploy contracts and run tests.
+PRIVATE_KEY="0x..."
+
+# (Optional) Etherscan API key for contract verification
+ETHERSCAN_API_KEY="..."
+
+# These are for the Python test script
+PREDICTIVE_TARGET_WETH="10.0"
+PREDICTIVE_TARGET_USDC="25000.0"
+3. Execute the Test Pipeline
+Run the master script. This single command will handle everything automatically.
+
+Bash
+
+# Make the script executable (only need to do this once)
+chmod +x run_sentinel_test.sh
+
+# Run the full test pipeline
+bash run_sentinel_test.sh
+What this script does:
+
+Starts a local Hardhat node, forking from your MAINNET_RPC_URL.
+
+Runs the deployment script (deploy/01-deploy-sentinel.js) which intelligently deploys the mock oracle and all necessary contracts.
+
+Executes the end-to-end Python test (test/sentinel_test.py).
+
+The Python script simulates funding the contract, creating a position, generating fees through swaps, and rebalancing the position.
+
+All results are saved to position_results_sentinel.csv.
+
+Finally, it shuts down the Hardhat node.
+
+🔮 Future Work
+Integrate Chainlink Functions: Replace the demo manualTrigger with a fully decentralized off-chain computation solution to fetch predictions from our AI model.
+
+Expand to L2s & More Pools: Deploy the system on Layer 2 networks like Arbitrum or Optimism and support a wider variety of trading pairs.
+
+Develop a User Interface: Create a simple and intuitive UI for users to deposit and withdraw their funds.
+
+📄 License
+This project is licensed under the MIT License.
